@@ -34,7 +34,4 @@ def get_dataloaders(batch_size=32):
 
     return train_loader, test_loader
 
-""" TO RUN THIS IN NOTEBOOK 
-from src.dataset import get_dataloaders
-
-train_loader, test_loader = get_dataloaders(batch_size=32) """
+""" RUN THIS FROM train.ipynb """
