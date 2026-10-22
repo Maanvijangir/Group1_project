@@ -1,4 +1,4 @@
-# Computer Vision Project - My work
+# Computer Vision Project - 
 
 ## Overview
 This project focuses on applying **Convolutional Neural Networks (CNNs)** for image-based disease detection.  
