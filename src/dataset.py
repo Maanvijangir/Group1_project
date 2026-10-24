@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 # Path to raw dataset
-RAW_DIR = os.path.join("data", "raw", "chest_xray")
+DATA_DIR = os.path.join("data", "interim", "chest_xray")
 
 # Define transforms
 train_transform = transforms.Compose([
@@ -22,16 +22,20 @@ test_transform = transforms.Compose([
 ])
 
 def get_dataloaders(batch_size=32):
-    """Return train and test dataloaders with preprocessing applied."""
-    train_data = datasets.ImageFolder(os.path.join(RAW_DIR, "train"), transform=train_transform)
-    test_data  = datasets.ImageFolder(os.path.join(RAW_DIR, "test"), transform=test_transform)
+    """Return train, val and test dataloaders with preprocessing applied."""
+    train_data = datasets.ImageFolder(os.path.join(DATA_DIR, "train"), transform=train_transform)
+    val_data = datasets.ImageFolder(os.path.join(DATA_DIR, "val"),transform=test_transform)
+    test_data  = datasets.ImageFolder(os.path.join(DATA_DIR, "test"), transform=test_transform)
 
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    val_loader  = DataLoader(val_data, batch_size=batch_size, shuffle=False)
     test_loader  = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
+
     print("Train size:", len(train_data))
+    print("Valid size:", len(val_data))
     print("Test size:", len(test_data))
 
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
 
 """ RUN THIS FROM train.ipynb """
