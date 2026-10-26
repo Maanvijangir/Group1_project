@@ -1,0 +1,11 @@
+Metric,Value
+Total images,5856.0
+NORMAL images,1583.0
+PNEUMONIA images,4273.0
+NORMAL percentage,27.03
+PNEUMONIA percentage,72.97
+Training images,5216.0
+Validation images,16.0
+Testing images,624.0
+Readable images,5856.0
+Unreadable images,0.0
