@@ -1,0 +1,4 @@
+Phase,Metric,Score
+Training,Average Loss,0.2346
+Validation,Recall,100.00%
+Testing,Recall,96.92%
