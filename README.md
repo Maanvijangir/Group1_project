@@ -133,6 +133,21 @@ Outputs:
 
 `cam_border_fraction` is the share of the heatmap in the outer 15% of the image. A flat heatmap scores about 0.51; values well above that point to border artefacts rather than the lungs. `explainability.ipynb` walks through the figures and records the findings.
 
+### Explainability Findings (test set, threshold 0.4)
+
+| Outcome | Count | Mean border attention |
+|---------|-------|-----------------------|
+| True positive | 378 | 0.49 |
+| True negative | 101 | 0.30 |
+| False positive | 133 | 0.59 |
+| False negative | 12 | 0.32 |
+
+- Recall is 96.9%, but **specificity is only 43.2%**: 133 of 234 normal X-rays are flagged as pneumonia, most with high confidence.
+- Grad-CAM heatmaps for pneumonia predictions are **diffuse** rather than focused on lung opacities.
+- **False positives look outside the lungs** (image edges, background, below the diaphragm), with the highest border attention of any group.
+- Normal predictions, including the 12 missed pneumonia cases, all focus on the upper-central chest and ignore the lower lung zones.
+- Suggested next steps for training: more epochs, drop `pos_weight=3` (pneumonia is already the majority class), choose the threshold on a proper validation split, and report specificity alongside recall.
+
 ---
 
 ## Notes
