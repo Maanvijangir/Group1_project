@@ -33,11 +33,14 @@ This project focuses on applying **Convolutional Neural Networks (CNNs)** for ch
 ├── src/
 │   └── dataset.py    # Preprocessing and dataloader implementation
 │   └── train.py
+│   └── explainability/gradcam.py  # Grad-CAM, occlusion sensitivity, border-attention metric
 |
 ├── EDA.ipynb         # Exploratory Data Analysis
 ├── setup.ipynb       # Kaggle API integration and dataset extraction
 ├── train.ipynb       # Training notebook
 ├── train_optimized.py # Optimized model training script
+├── explain.py        # Explainability script (Grad-CAM + occlusion)
+├── explainability.ipynb # Explainability walkthrough and findings
 └── README.md
 ```
 
@@ -103,6 +106,32 @@ This script handles:
 - Achieved **100% recall on the validation set**, demonstrating excellent pneumonia detection capability during validation.
 - Achieved **96.92% recall on the test set**, showing strong generalization to unseen data.
 - The model prioritizes high recall, which is critical in medical diagnosis tasks where missing pneumonia cases can have serious consequences.
+
+---
+
+## Explainability
+
+High recall does not show *why* the model predicts pneumonia. Chest X-ray models are known to pick up shortcuts such as text markers, hospital labels or image borders instead of lung tissue, so the trained ResNet-18 is checked with two methods:
+
+- **Grad-CAM** on the last convolutional block (`layer4`) highlights the regions that drove each prediction.
+- **Occlusion sensitivity** hides one 15×15 patch at a time and measures the drop in pneumonia probability. It does not use gradients, so it cross-checks Grad-CAM.
+
+Run from the repo root once the dataset is in `data/interim/chest_xray`:
+
+```bash
+python explain.py                                # whole test split
+python explain.py --image path/to/xray.jpeg      # a single X-ray
+```
+
+Outputs:
+
+| File | Description |
+|--------|-------------|
+| `reports/figures/explainability/<outcome>.png` | Grad-CAM examples for true/false positives and negatives |
+| `reports/figures/explainability/occlusion_<outcome>.png` | Grad-CAM next to occlusion for the same images |
+| `reports/explainability_summary.csv` | Per-image probability, prediction, outcome and `cam_border_fraction` |
+
+`cam_border_fraction` is the share of the heatmap in the outer 15% of the image. A flat heatmap scores about 0.51; values well above that point to border artefacts rather than the lungs. `explainability.ipynb` walks through the figures and records the findings.
 
 ---
 
