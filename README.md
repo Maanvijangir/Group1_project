@@ -37,7 +37,6 @@ This project focuses on applying **Convolutional Neural Networks (CNNs)** for ch
 |
 ├── EDA.ipynb         # Exploratory Data Analysis
 ├── setup.ipynb       # Kaggle API integration and dataset extraction
-├── train.ipynb       # Training notebook
 ├── train_optimized.py # Optimized model training script
 ├── explain.py        # Explainability script (Grad-CAM + occlusion)
 ├── explainability.ipynb # Explainability walkthrough and findings
