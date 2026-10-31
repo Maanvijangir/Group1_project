@@ -8,15 +8,15 @@ DATA_DIR = os.path.join("data", "interim", "chest_xray")
 
 # Define transforms
 train_transform = transforms.Compose([
-    transforms.Resize((150, 150)),
-    transforms.RandomHorizontalFlip(),
+    transforms.Resize((224, 224)),
+    #transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(10),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 test_transform = transforms.Compose([
-    transforms.Resize((150, 150)),
+    transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
