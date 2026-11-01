@@ -108,6 +108,20 @@ This script handles:
 
 ---
 
+## Evaluation
+
+`evaluate.py` reports accuracy, recall, specificity, precision, F1, ROC-AUC and the confusion matrix on the validation and test splits, and saves them to `reports/evaluation_<arch>.csv` with a confusion matrix and ROC curve in `reports/figures/evaluation/`.
+
+```bash
+python evaluate.py --image-size 150               # ResNet-18 (trained at 150x150), threshold 0.4
+python evaluate.py --arch resnet50                # ResNet-50 from models/baseline_resnet50.pth
+python evaluate.py --arch resnet50 --min-recall 0.95   # pick the threshold on validation, apply it to test
+```
+
+Always quote **test** results. Validation scores can be optimistic: the ResNet-18 scores 93.3% specificity on validation but 43.2% on test, because its validation images were part of its training data.
+
+---
+
 ## Explainability
 
 High recall does not show *why* the model predicts pneumonia. Chest X-ray models are known to pick up shortcuts such as text markers, hospital labels or image borders instead of lung tissue, so the trained ResNet-18 is checked with two methods:
