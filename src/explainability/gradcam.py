@@ -4,6 +4,18 @@ import torch.nn.functional as F
 import numpy as np
 from torchvision import models
 
+<<<<<<< HEAD
+CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
+
+def load_resnet50(weights_path, device):
+    """Load the ResNet-50 trained in train.py."""
+    model = models.resnet50(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
+    return model.to(device).eval()
+
+class GradCAM:
+=======
 # ImageFolder sorts class folders alphabetically: NORMAL=0, PNEUMONIA=1
 CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
 
@@ -23,6 +35,7 @@ class GradCAM:
     says PNEUMONIA, and the negated logit when it says NORMAL.
     """
 
+>>>>>>> b1fa23933f9bec53dc27954e4b6db966c3638dff
     def __init__(self, model, target_layer):
         self.model = model
         self.activations = None
@@ -39,6 +52,18 @@ class GradCAM:
     def remove(self):
         self._handle.remove()
 
+<<<<<<< HEAD
+    def __call__(self, images):
+        self.model.zero_grad()
+        with torch.enable_grad():
+            logits = self.model(images)
+            probs = F.softmax(logits, dim=1)
+            preds = logits.argmax(dim=1)
+            
+            # Backpropagate the logit of the predicted class
+            score = logits.gather(1, preds.view(-1, 1)).sum()
+            score.backward()
+=======
     def __call__(self, images, threshold=0.5):
         """Return (cams, probabilities, predictions) for a batch of normalized images.
 
@@ -53,6 +78,7 @@ class GradCAM:
             # gives every sample's gradient at once
             sign = torch.where(preds == 1, 1.0, -1.0)
             (logits * sign).sum().backward()
+>>>>>>> b1fa23933f9bec53dc27954e4b6db966c3638dff
 
         weights = self.gradients.mean(dim=(2, 3), keepdim=True)
         cams = F.relu((weights * self.activations).sum(dim=1, keepdim=True))

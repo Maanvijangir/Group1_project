@@ -1,8 +1,4 @@
-.venv/
+data/
+models/
+venv/
 __pycache__/
-*.pyc
-.ipynb_checkpoints/
-
-# Dataset stays local; keep only the folder placeholders
-data/*/*
-!data/*/.gitkeep
