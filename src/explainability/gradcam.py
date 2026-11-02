@@ -4,18 +4,6 @@ import torch.nn.functional as F
 import numpy as np
 from torchvision import models
 
-<<<<<<< HEAD
-CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
-
-def load_resnet50(weights_path, device):
-    """Load the ResNet-50 trained in train.py."""
-    model = models.resnet50(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, 2)
-    model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
-    return model.to(device).eval()
-
-class GradCAM:
-=======
 # ImageFolder sorts class folders alphabetically: NORMAL=0, PNEUMONIA=1
 CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
 
@@ -28,14 +16,32 @@ def load_resnet18(weights_path, device):
     return model.to(device).eval()
 
 
-class GradCAM:
-    """Grad-CAM (Selvaraju et al., 2017) for a model with one output logit.
+def load_resnet50(weights_path, device):
+    """Rebuild the ResNet-50 from src/modeling/train.py (two logits) and load its weights."""
+    model = models.resnet50(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, 2)
+    model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
+    return model.to(device).eval()
 
-    The heatmap explains the predicted class: the pneumonia logit when the model
-    says PNEUMONIA, and the negated logit when it says NORMAL.
+
+LOADERS = {"resnet18": load_resnet18, "resnet50": load_resnet50}
+
+
+def pneumonia_probability(logits):
+    """P(pneumonia) for either head: one sigmoid logit (ResNet-18) or two softmax logits (ResNet-50)."""
+    if logits.shape[1] == 1:
+        return torch.sigmoid(logits.view(-1))
+    return F.softmax(logits, dim=1)[:, 1]
+
+
+class GradCAM:
+    """Grad-CAM (Selvaraju et al., 2017) for the ResNet-18 (one logit) or ResNet-50 (two logits).
+
+    The heatmap explains the predicted class. With one logit that is the pneumonia
+    logit for a PNEUMONIA prediction and the negated logit for NORMAL; with two
+    logits it is the logit of the predicted class.
     """
 
->>>>>>> b1fa23933f9bec53dc27954e4b6db966c3638dff
     def __init__(self, model, target_layer):
         self.model = model
         self.activations = None
@@ -44,7 +50,9 @@ class GradCAM:
 
     def _save_activation(self, module, inputs, output):
         self.activations = output
-        output.register_hook(self._save_gradient)
+        # Forward passes under no_grad (e.g. occlusion) have nothing to hook
+        if output.requires_grad:
+            output.register_hook(self._save_gradient)
 
     def _save_gradient(self, grad):
         self.gradients = grad
@@ -52,33 +60,25 @@ class GradCAM:
     def remove(self):
         self._handle.remove()
 
-<<<<<<< HEAD
-    def __call__(self, images):
-        self.model.zero_grad()
-        with torch.enable_grad():
-            logits = self.model(images)
-            probs = F.softmax(logits, dim=1)
-            preds = logits.argmax(dim=1)
-            
-            # Backpropagate the logit of the predicted class
-            score = logits.gather(1, preds.view(-1, 1)).sum()
-            score.backward()
-=======
     def __call__(self, images, threshold=0.5):
         """Return (cams, probabilities, predictions) for a batch of normalized images.
 
-        cams has shape (N, H, W) at input resolution, each scaled to [0, 1].
+        probabilities are P(pneumonia) with shape (N,); cams has shape (N, H, W)
+        at input resolution, each scaled to [0, 1].
         """
         self.model.zero_grad()
         with torch.enable_grad():
-            logits = self.model(images).view(-1)
-            probs = torch.sigmoid(logits)
+            logits = self.model(images)
+            probs = pneumonia_probability(logits)
             preds = (probs >= threshold).long()
             # Samples are independent in eval mode, so one backward pass on the sum
             # gives every sample's gradient at once
-            sign = torch.where(preds == 1, 1.0, -1.0)
-            (logits * sign).sum().backward()
->>>>>>> b1fa23933f9bec53dc27954e4b6db966c3638dff
+            if logits.shape[1] == 1:
+                sign = torch.where(preds == 1, 1.0, -1.0)
+                score = (logits.view(-1) * sign).sum()
+            else:
+                score = logits.gather(1, preds.view(-1, 1)).sum()
+            score.backward()
 
         weights = self.gradients.mean(dim=(2, 3), keepdim=True)
         cams = F.relu((weights * self.activations).sum(dim=1, keepdim=True))
@@ -98,7 +98,7 @@ def occlusion_sensitivity(model, image, patch=15, stride=15, batch_size=64):
     device = image.device
     _, height, width = image.shape
     with torch.no_grad():
-        base = torch.sigmoid(model(image.unsqueeze(0)).view(-1))[0].item()
+        base = pneumonia_probability(model(image.unsqueeze(0)))[0].item()
 
     positions = [(y, x) for y in range(0, height - patch + 1, stride)
                  for x in range(0, width - patch + 1, stride)]
@@ -110,7 +110,7 @@ def occlusion_sensitivity(model, image, patch=15, stride=15, batch_size=64):
             # 0 in normalized space is mid-gray for Normalize((0.5,), (0.5,))
             batch[i, :, y:y + patch, x:x + patch] = 0.0
         with torch.no_grad():
-            probs = torch.sigmoid(model(batch).view(-1))
+            probs = pneumonia_probability(model(batch))
         drops.extend((base - probs).cpu().tolist())
 
     heatmap = np.zeros((height, width), dtype=np.float32)
