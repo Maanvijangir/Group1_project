@@ -128,8 +128,9 @@ High recall does not show *why* the model predicts pneumonia. Chest X-ray models
 Run from the repo root once the dataset is in `data/interim/chest_xray`:
 
 ```bash
-python explain.py                                # whole test split
-python explain.py --image path/to/xray.jpeg      # a single X-ray
+python explain.py --image-size 150                         # ResNet-18, whole test split
+python explain.py --image-size 150 --image path/to/xray.jpeg   # ResNet-18, a single X-ray
+python explain.py --arch resnet50                          # ResNet-50 from models/baseline_resnet50.pth
 ```
 
 Outputs:
@@ -141,6 +142,8 @@ Outputs:
 | `reports/explainability_summary.csv` | Per-image probability, prediction, outcome and `cam_border_fraction` |
 
 `cam_border_fraction` is the share of the heatmap in the outer 15% of the image. A flat heatmap scores about 0.51; values well above that point to border artefacts rather than the lungs. `explainability.ipynb` walks through the figures and records the findings.
+
+Use `--image-size` when a model was trained at a different size from `src/dataset.py`. The ResNet-18 in this repo was trained at 150×150, and running it at 224×224 changes its results (183 false positives instead of 133).
 
 ### Explainability Findings (test set, threshold 0.4)
 
