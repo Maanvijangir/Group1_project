@@ -6,6 +6,16 @@ This project focuses on applying **Convolutional Neural Networks (CNNs)** for ch
 
 ---
 
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+---
+
 ## Dataset
 
 - **Source:** Kaggle - Chest X-Ray Pneumonia Dataset (Paul Mooney)

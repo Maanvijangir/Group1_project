@@ -1,0 +1,20 @@
+# Install with: pip install -r requirements.txt
+# Lower bounds only, so everyone can keep the PyTorch build that matches their
+# machine (CUDA, Apple MPS or CPU).
+
+# Model training, evaluation and explainability
+torch>=2.0
+torchvision>=0.15
+numpy>=1.24
+pillow>=9.0
+scikit-learn>=1.2
+
+# Reports, figures and notebooks
+matplotlib>=3.7
+pandas>=2.0
+seaborn>=0.12
+opencv-python-headless>=4.7
+jupyter>=1.0
+
+# Dataset download (API tokens need kaggle>=1.8)
+kaggle>=1.8.0
