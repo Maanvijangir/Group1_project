@@ -95,7 +95,6 @@ def occlusion_sensitivity(model, image, patch=15, stride=15, batch_size=64):
     """Slide a gray patch over one normalized image (C, H, W) and record how much the
     pneumonia probability drops. Used to cross-check Grad-CAM with a model-agnostic method.
     """
-    device = image.device
     _, height, width = image.shape
     with torch.no_grad():
         base = pneumonia_probability(model(image.unsqueeze(0)))[0].item()

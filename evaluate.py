@@ -25,15 +25,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, roc_auc_score, roc_curve
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 
-from src.dataset import DATA_DIR, XrayDataset, get_train_val_samples
+from src.dataset import get_dataloaders, get_test_transform
 from src.explainability.gradcam import CLASS_NAMES, LOADERS, pneumonia_probability
 
 # Default weights and decision threshold for each architecture
 ARCH_DEFAULTS = {
-    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # matches train_optimized.py
+    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # the threshold the weights in the repo were reported at
     "resnet50": (os.path.join("models", "baseline_resnet50.pth"), 0.5),  # argmax in src/modeling/train.py
 }
 
@@ -91,8 +89,9 @@ def main():
                         help="fixed P(pneumonia) threshold (default: 0.4 for resnet18, 0.5 for resnet50)")
     parser.add_argument("--min-recall", type=float,
                         help="instead of --threshold, pick the threshold on validation that keeps this recall")
-    parser.add_argument("--image-size", type=int, default=224,
-                        help="input size the model was trained at (the ResNet-18 weights were trained at 150)")
+    parser.add_argument("--image-size", type=int,
+                        help="input size the model was trained at (default: src/dataset.py test_transform; "
+                             "the ResNet-18 weights in the repo were trained at 150)")
     parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
 
@@ -101,18 +100,12 @@ def main():
     device = get_device()
     model = LOADERS[args.arch](weights, device)
 
-    # Same preprocessing as src/dataset.py test_transform, at the chosen size
-    transform = transforms.Compose([
-        transforms.Resize((args.image_size, args.image_size)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-    ])
-    _, val_samples = get_train_val_samples()
-    loaders = {
-        "val": DataLoader(XrayDataset(val_samples, transform), batch_size=args.batch_size),
-        "test": DataLoader(datasets.ImageFolder(os.path.join(DATA_DIR, "test"), transform=transform),
-                           batch_size=args.batch_size),
-    }
+    # The same validation split and preprocessing as training
+    _, val_loader, test_loader = get_dataloaders(batch_size=args.batch_size)
+    transform = get_test_transform(args.image_size)
+    val_loader.dataset.transform = transform
+    test_loader.dataset.transform = transform
+    loaders = {"val": val_loader, "test": test_loader}
     results = {split: predict(model, loader, device) for split, loader in loaders.items()}
 
     if args.min_recall is not None:
@@ -122,7 +115,7 @@ def main():
         threshold = default_threshold if args.threshold is None else args.threshold
 
     rows = []
-    print(f"\n{args.arch} ({weights}), threshold {threshold:.4f}, image size {args.image_size}")
+    print(f"\n{args.arch} ({weights}), threshold {threshold:.4f}, image size {args.image_size or 'from src/dataset.py'}")
     print(f"{'split':<6}{'acc':>8}{'recall':>8}{'spec':>8}{'prec':>8}{'f1':>8}{'auc':>8}   TP  FN  TN  FP")
     for split, (labels, probs) in results.items():
         metrics = compute_metrics(labels, probs, threshold)
