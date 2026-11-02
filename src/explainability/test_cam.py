@@ -27,8 +27,8 @@ plt.title("Original X-Ray")
 plt.imshow(raw_img.resize((224, 224)))
 
 plt.subplot(1, 2, 2)
-# probs[0][1] shows the probability of class 1 (Pneumonia)
-plt.title(f"Grad-CAM (Pred: {preds[0]}, Prob: {probs[0][1]:.2f})")
+# probs[0] is the probability of class 1 (Pneumonia)
+plt.title(f"Grad-CAM (Pred: {preds[0]}, Prob: {probs[0]:.2f})")
 plt.imshow(raw_img.resize((224, 224)))
 plt.imshow(cams[0], cmap='jet', alpha=0.5)
 import os

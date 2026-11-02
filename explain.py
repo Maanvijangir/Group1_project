@@ -1,4 +1,4 @@
-"""Explainability for the pneumonia ResNet-18.
+"""Explainability for the pneumonia ResNet-18 and ResNet-50.
 
 Runs Grad-CAM on every image of a split, groups the results into true/false
 positives/negatives, and saves:
@@ -7,7 +7,8 @@ positives/negatives, and saves:
   - reports/explainability_summary.csv   per-image probability, prediction and border attention
 
 Usage (from the repo root):
-  python explain.py                         # whole test split
+  python explain.py                         # ResNet-18, whole test split
+  python explain.py --arch resnet50         # ResNet-50 from models/baseline_resnet50.pth
   python explain.py --image path/to/xray.jpeg
 """
 import argparse
@@ -24,8 +25,14 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 
 from src.dataset import DATA_DIR, test_transform
-from src.explainability.gradcam import (CLASS_NAMES, GradCAM, border_fraction, denormalize,
-                                        load_resnet18, occlusion_sensitivity)
+from src.explainability.gradcam import (CLASS_NAMES, LOADERS, GradCAM, border_fraction, denormalize,
+                                        occlusion_sensitivity)
+
+# Default weights and decision threshold for each architecture
+ARCH_DEFAULTS = {
+    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # matches train_optimized.py
+    "resnet50": (os.path.join("models", "baseline_resnet50.pth"), 0.5),  # argmax in src/modeling/train.py
+}
 
 GROUPS = {
     "true_positive": "Pneumonia, predicted pneumonia",
@@ -185,12 +192,13 @@ def explain_image(args, model, device):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--weights", default="pneumonia_resnet18_recall_optimized.pth")
+    parser.add_argument("--arch", default="resnet18", choices=list(LOADERS))
+    parser.add_argument("--weights", help="default: the usual weights file for --arch")
     parser.add_argument("--data-dir", default=DATA_DIR)
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--image", help="explain a single X-ray instead of a whole split")
-    parser.add_argument("--threshold", type=float, default=0.4,
-                        help="decision threshold, matches train_optimized.py")
+    parser.add_argument("--threshold", type=float,
+                        help="P(pneumonia) decision threshold (default: 0.4 for resnet18, 0.5 for resnet50)")
     parser.add_argument("--num-examples", type=int, default=4, help="images per outcome group in the grids")
     parser.add_argument("--num-occlusion", type=int, default=2, help="images per group for the occlusion check")
     parser.add_argument("--out-dir", default=os.path.join("reports", "figures", "explainability"))
@@ -198,7 +206,10 @@ def main():
     args = parser.parse_args()
 
     device = get_device()
-    model = load_resnet18(args.weights, device)
+    default_weights, default_threshold = ARCH_DEFAULTS[args.arch]
+    args.weights = args.weights or default_weights
+    args.threshold = default_threshold if args.threshold is None else args.threshold
+    model = LOADERS[args.arch](args.weights, device)
     if args.image:
         explain_image(args, model, device)
     else:

@@ -1,13 +1,21 @@
 import os
 import torch
 from torch.utils.data import DataLoader, Dataset, ConcatDataset
+from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
+from torchvision.datasets.folder import default_loader
 from sklearn.model_selection import train_test_split
 
 # Path to raw dataset (kept identical for explain.py / gradcam.py compatibility)
 DATA_DIR = os.path.join("data", "interim", "chest_xray")
 
 # Training transforms: crop out outer ~15% to remove "A-P" / "R" markers & scanner borders
+# Share of the training images held out for validation, and the seed that makes
+# the split identical on every machine
+VAL_FRACTION = 0.2
+SPLIT_SEED = 42
+
+# Define transforms
 train_transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.RandomRotation(5),
