@@ -10,6 +10,7 @@ Usage (from the repo root):
   python explain.py                         # ResNet-18, whole test split
   python explain.py --arch resnet50         # ResNet-50 from models/baseline_resnet50.pth
   python explain.py --image path/to/xray.jpeg
+  python explain.py --image-size 150        # model trained at another size than src/dataset.py uses
 """
 import argparse
 import csv
@@ -22,7 +23,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader
-from torchvision import datasets
+from torchvision import datasets, transforms
 
 from src.dataset import DATA_DIR, test_transform
 from src.explainability.gradcam import (CLASS_NAMES, LOADERS, GradCAM, border_fraction, denormalize,
@@ -100,9 +101,20 @@ def save_occlusion_grid(model, records, tensors, group, path):
     plt.close(fig)
 
 
+def get_transform(image_size):
+    """src/dataset.py test_transform, or the same preprocessing at the size the model was trained at."""
+    if image_size is None:
+        return test_transform
+    return transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,)),
+    ])
+
+
 def explain_split(args, model, device):
     split_dir = os.path.join(args.data_dir, args.split)
-    data = datasets.ImageFolder(split_dir, transform=test_transform)
+    data = datasets.ImageFolder(split_dir, transform=get_transform(args.image_size))
     loader = DataLoader(data, batch_size=32, shuffle=False)
     gradcam = GradCAM(model, model.layer4)
 
@@ -160,7 +172,7 @@ def explain_split(args, model, device):
 
 def explain_image(args, model, device):
     image = Image.open(args.image).convert("RGB")
-    tensor = test_transform(image).unsqueeze(0).to(device)
+    tensor = get_transform(args.image_size)(image).unsqueeze(0).to(device)
     gradcam = GradCAM(model, model.layer4)
     cams, probs, preds = gradcam(tensor, threshold=args.threshold)
     gradcam.remove()
@@ -199,6 +211,9 @@ def main():
     parser.add_argument("--image", help="explain a single X-ray instead of a whole split")
     parser.add_argument("--threshold", type=float,
                         help="P(pneumonia) decision threshold (default: 0.4 for resnet18, 0.5 for resnet50)")
+    parser.add_argument("--image-size", type=int,
+                        help="input size the model was trained at (default: src/dataset.py test_transform; "
+                             "the ResNet-18 weights were trained at 150)")
     parser.add_argument("--num-examples", type=int, default=4, help="images per outcome group in the grids")
     parser.add_argument("--num-occlusion", type=int, default=2, help="images per group for the occlusion check")
     parser.add_argument("--out-dir", default=os.path.join("reports", "figures", "explainability"))
