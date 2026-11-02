@@ -93,9 +93,8 @@ This script handles:
 
 - Dataset loading
 - Data preprocessing
-- Model training
-- Validation
-- Performance evaluation
+- One pass of model training over the training data
+- Saving the weights to `pneumonia_resnet18_recall_optimized.pth`
 
 ---
 
@@ -103,17 +102,23 @@ This script handles:
 
 ### Model Performance
 
-| Phase | Metric | Score |
-|---------|---------|---------|
-| Training | Average Loss | 0.2346 |
-| Validation | Recall | 100.00% |
-| Testing | Recall | 96.92% |
+ResNet-18 in this repo on the 624 test images, at 150×150 with threshold 0.4:
+
+| Metric | Score |
+|---------|---------|
+| Recall | 96.9% |
+| Specificity | 43.2% |
+| Precision | 74.0% |
+| Accuracy | 76.8% |
+| F1 | 0.839 |
+| ROC-AUC | 0.913 |
+
+Confusion matrix: 378 true positives, 12 false negatives, 101 true negatives, 133 false positives.
 
 ### Key Findings
 
-- Low training loss (**0.2346**) indicates successful model learning.
-- Achieved **100% recall on the validation set**, demonstrating excellent pneumonia detection capability during validation.
-- Achieved **96.92% recall on the test set**, showing strong generalization to unseen data.
+- The model finds **96.9% of pneumonia cases**, but it also flags **133 of 234 normal X-rays** as pneumonia, so these results are not ready for deployment.
+- The earlier **100% validation recall** came from the original validation folder, which holds only 8 pneumonia images, so it is not a reliable estimate.
 - The model prioritizes high recall, which is critical in medical diagnosis tasks where missing pneumonia cases can have serious consequences.
 
 ---
