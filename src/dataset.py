@@ -1,13 +1,15 @@
 import os
 import torch
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 from torchvision.datasets.folder import default_loader
 from sklearn.model_selection import train_test_split
 
-# Path to raw dataset
+# Path to raw dataset (kept identical for explain.py / gradcam.py compatibility)
 DATA_DIR = os.path.join("data", "interim", "chest_xray")
 
+# Training transforms: crop out outer ~15% to remove "A-P" / "R" markers & scanner borders
 # Share of the training images held out for validation, and the seed that makes
 # the split identical on every machine
 VAL_FRACTION = 0.2
@@ -15,71 +17,97 @@ SPLIT_SEED = 42
 
 # Define transforms
 train_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    #transforms.RandomHorizontalFlip(),
-    transforms.RandomRotation(10),
+    transforms.Resize((256, 256)),
+    transforms.RandomRotation(5),
+    transforms.RandomResizedCrop(224, scale=(0.85, 1.0), ratio=(0.95, 1.05)),
+    transforms.ColorJitter(brightness=0.15, contrast=0.15),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
+# Validation / Test transforms: deterministic center crop to 224x224
 test_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((256, 256)),
+    transforms.CenterCrop(224),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 
-class XrayDataset(Dataset):
-    """A list of (path, label) samples with its own transform."""
-
-    def __init__(self, samples, transform):
-        self.samples = samples
-        self.targets = [label for _, label in samples]
+class SubsetWithTransform(Dataset):
+    """Applies split-specific transforms without leaking augmentations to validation."""
+    def __init__(self, dataset, indices, transform=None):
+        self.dataset = dataset
+        self.indices = indices
         self.transform = transform
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.indices)
 
-    def __getitem__(self, index):
-        path, label = self.samples[index]
-        return self.transform(default_loader(path)), label
+    def __getitem__(self, idx):
+        img, label = self.dataset[self.indices[idx]]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
 
 
-def get_train_val_samples(val_fraction=VAL_FRACTION, seed=SPLIT_SEED):
-    """Split the training images into stratified train and validation samples.
+def _extract_stratification_key(filepath, label):
+    """Stratifies across Normal (0), Bacterial Pneumonia (1), and Viral Pneumonia (2)."""
+    if label == 0:
+        return 0
+    fname = os.path.basename(filepath).lower()
+    if "virus" in fname:
+        return 2
+    return 1
 
-    The official val/ folder has only 16 images, so it is pooled with train/ when
-    it still exists (setup.ipynb moves it into train/). Samples are sorted by class
-    and file name first, so both folder layouts give exactly the same split.
+
+def get_dataloaders(batch_size=32, val_split=0.15, return_val=False, num_workers=2):
     """
-    samples = datasets.ImageFolder(os.path.join(DATA_DIR, "train")).samples
+    Returns DataLoaders with 85/15 stratified train/val split.
+    Set return_val=True to get (train_loader, val_loader, test_loader).
+    """
+    train_dir = os.path.join(DATA_DIR, "train")
     val_dir = os.path.join(DATA_DIR, "val")
-    if os.path.isdir(val_dir):
-        samples += datasets.ImageFolder(val_dir).samples
-    samples = sorted(samples, key=lambda s: (s[1], os.path.basename(s[0])))
+    test_dir = os.path.join(DATA_DIR, "test")
 
-    labels = [label for _, label in samples]
-    train_samples, val_samples = train_test_split(
-        samples, test_size=val_fraction, stratify=labels, random_state=seed)
-    return train_samples, val_samples
+    # Load raw PIL datasets without transforms first
+    base_train = datasets.ImageFolder(train_dir, transform=None)
+    datasets_list = [base_train]
+    all_samples = list(base_train.samples)
 
+    if os.path.exists(val_dir):
+        base_val = datasets.ImageFolder(val_dir, transform=None)
+        datasets_list.append(base_val)
+        all_samples.extend(base_val.samples)
 
-def get_dataloaders(batch_size=32):
-    """Return train, val and test dataloaders with preprocessing applied."""
-    train_samples, val_samples = get_train_val_samples()
-    train_data = XrayDataset(train_samples, train_transform)
-    val_data = XrayDataset(val_samples, test_transform)
-    test_data  = datasets.ImageFolder(os.path.join(DATA_DIR, "test"), transform=test_transform)
+    full_pool = ConcatDataset(datasets_list)
+    strat_keys = [_extract_stratification_key(p, lbl) for p, lbl in all_samples]
+    indices = list(range(len(full_pool)))
 
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    val_loader  = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-    test_loader  = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    train_idx, val_idx = train_test_split(
+        indices,
+        test_size=val_split,
+        random_state=42,
+        stratify=strat_keys
+    )
 
+    train_data = SubsetWithTransform(full_pool, train_idx, transform=train_transform)
+    val_data = SubsetWithTransform(full_pool, val_idx, transform=test_transform)
+    test_data = datasets.ImageFolder(test_dir, transform=test_transform)
 
-    print("Train size:", len(train_data))
-    print("Valid size:", len(val_data))
-    print("Test size:", len(test_data))
+    # Store targets for class weight calculation
+    train_data.targets = [all_samples[i][1] for i in train_idx]
+    val_data.targets = [all_samples[i][1] for i in val_idx]
 
-    return train_loader, val_loader, test_loader
+    pin = torch.cuda.is_available()
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin)
+    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin)
 
-""" RUN THIS FROM train.ipynb """
+    print(f"Train size: {len(train_data)}")
+    print(f"Val size:   {len(val_data)}")
+    print(f"Test size:  {len(test_data)}")
+
+    if return_val:
+        return train_loader, val_loader, test_loader
+    return train_loader, test_loader
