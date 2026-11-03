@@ -34,6 +34,17 @@ test_transform = transforms.Compose([
 ])
 
 
+def get_test_transform(image_size=None):
+    """test_transform, or plain resizing for a model trained at another size without the crop."""
+    if image_size is None:
+        return test_transform
+    return transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+
+
 class SubsetWithTransform(Dataset):
     """Applies split-specific transforms without leaking augmentations to validation."""
     def __init__(self, dataset, indices, transform=None):
@@ -61,10 +72,10 @@ def _extract_stratification_key(filepath, label):
     return 1
 
 
-def get_dataloaders(batch_size=32, val_split=0.15, return_val=False, num_workers=2):
+def get_dataloaders(batch_size=32, val_split=0.15, return_val=True, num_workers=2):
     """
-    Returns DataLoaders with 85/15 stratified train/val split.
-    Set return_val=True to get (train_loader, val_loader, test_loader).
+    Returns DataLoaders with 85/15 stratified train/val split:
+    (train_loader, val_loader, test_loader), or (train_loader, test_loader) with return_val=False.
     """
     train_dir = os.path.join(DATA_DIR, "train")
     val_dir = os.path.join(DATA_DIR, "val")
@@ -75,8 +86,12 @@ def get_dataloaders(batch_size=32, val_split=0.15, return_val=False, num_workers
     datasets_list = [base_train]
     all_samples = list(base_train.samples)
 
-    if os.path.exists(val_dir):
+    # setup.ipynb moves the val/ images into train/ and leaves the folders empty
+    try:
         base_val = datasets.ImageFolder(val_dir, transform=None)
+    except FileNotFoundError:
+        base_val = None
+    if base_val is not None:
         datasets_list.append(base_val)
         all_samples.extend(base_val.samples)
 

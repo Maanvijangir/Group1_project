@@ -2,9 +2,10 @@
 
 Runs Grad-CAM on every image of a split, groups the results into true/false
 positives/negatives, and saves:
-  - reports/figures/explainability/<group>.png   Grad-CAM grids per outcome group
-  - reports/figures/explainability/occlusion_<group>.png   Grad-CAM vs. occlusion check
-  - reports/explainability_summary.csv   per-image probability, prediction and border attention
+  - reports/figures/explainability/<run>/<group>.png   Grad-CAM grids per outcome group
+  - reports/figures/explainability/<run>/occlusion_<group>.png   Grad-CAM vs. occlusion check
+  - reports/explainability_summary_<run>.csv   per-image probability, prediction and border attention
+<run> is the model name plus any --image-size, so one model's report never overwrites another's.
 
 Usage (from the repo root):
   python explain.py                         # ResNet-18, whole test split
@@ -23,15 +24,15 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+from torchvision import datasets
 
-from src.dataset import DATA_DIR, test_transform
+from src.dataset import DATA_DIR, get_test_transform
 from src.explainability.gradcam import (CLASS_NAMES, LOADERS, GradCAM, border_fraction, denormalize,
                                         occlusion_sensitivity)
 
 # Default weights and decision threshold for each architecture
 ARCH_DEFAULTS = {
-    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # matches train_optimized.py
+    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # the threshold the weights in the repo were reported at
     "resnet50": (os.path.join("models", "baseline_resnet50.pth"), 0.5),  # argmax in src/modeling/train.py
 }
 
@@ -101,20 +102,9 @@ def save_occlusion_grid(model, records, tensors, group, path):
     plt.close(fig)
 
 
-def get_transform(image_size):
-    """src/dataset.py test_transform, or the same preprocessing at the size the model was trained at."""
-    if image_size is None:
-        return test_transform
-    return transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,)),
-    ])
-
-
 def explain_split(args, model, device):
     split_dir = os.path.join(args.data_dir, args.split)
-    data = datasets.ImageFolder(split_dir, transform=get_transform(args.image_size))
+    data = datasets.ImageFolder(split_dir, transform=get_test_transform(args.image_size))
     loader = DataLoader(data, batch_size=32, shuffle=False)
     gradcam = GradCAM(model, model.layer4)
 
@@ -172,7 +162,7 @@ def explain_split(args, model, device):
 
 def explain_image(args, model, device):
     image = Image.open(args.image).convert("RGB")
-    tensor = get_transform(args.image_size)(image).unsqueeze(0).to(device)
+    tensor = get_test_transform(args.image_size)(image).unsqueeze(0).to(device)
     gradcam = GradCAM(model, model.layer4)
     cams, probs, preds = gradcam(tensor, threshold=args.threshold)
     gradcam.remove()
@@ -216,9 +206,13 @@ def main():
                              "the ResNet-18 weights were trained at 150)")
     parser.add_argument("--num-examples", type=int, default=4, help="images per outcome group in the grids")
     parser.add_argument("--num-occlusion", type=int, default=2, help="images per group for the occlusion check")
-    parser.add_argument("--out-dir", default=os.path.join("reports", "figures", "explainability"))
-    parser.add_argument("--summary", default=os.path.join("reports", "explainability_summary.csv"))
+    parser.add_argument("--out-dir", help="default: reports/figures/explainability/<run>")
+    parser.add_argument("--summary", help="default: reports/explainability_summary_<run>.csv")
     args = parser.parse_args()
+
+    run = f"{args.arch}_{args.image_size}" if args.image_size else args.arch
+    args.out_dir = args.out_dir or os.path.join("reports", "figures", "explainability", run)
+    args.summary = args.summary or os.path.join("reports", f"explainability_summary_{run}.csv")
 
     device = get_device()
     default_weights, default_threshold = ARCH_DEFAULTS[args.arch]

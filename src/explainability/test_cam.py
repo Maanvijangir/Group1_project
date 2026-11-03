@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
 from src.dataset import DATA_DIR, test_transform
-from src.explainability.gradcam import CLASS_NAMES, GradCAM, load_resnet50
+from src.explainability.gradcam import CLASS_NAMES, GradCAM, denormalize, load_resnet50
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -33,20 +33,19 @@ input_tensor = test_transform(raw_img).unsqueeze(0).to(device)
 cams, probs, preds = cam(input_tensor)
 cam.remove()
 
-# The heatmap has the model's input size, so show the image at that size too
-size = tuple(input_tensor.shape[-2:][::-1])
-display_img = raw_img.resize(size)
+# Show what the model saw (resized and center-cropped), so the heatmap lines up with it
+display_img = denormalize(input_tensor[0])
 
 plt.figure(figsize=(10, 5))
 plt.subplot(1, 2, 1)
-plt.title("Original X-Ray")
-plt.imshow(display_img)
+plt.title("X-Ray as seen by the model")
+plt.imshow(display_img, cmap="gray")
 plt.axis("off")
 
 plt.subplot(1, 2, 2)
 # probs[0] is the probability of class 1 (Pneumonia)
 plt.title(f"Grad-CAM (Pred: {CLASS_NAMES[preds[0]]}, P(pneumonia): {probs[0]:.2f})")
-plt.imshow(display_img)
+plt.imshow(display_img, cmap="gray")
 plt.imshow(cams[0], cmap='jet', alpha=0.5)
 plt.axis("off")
 
