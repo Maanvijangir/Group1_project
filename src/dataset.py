@@ -19,7 +19,7 @@ SPLIT_SEED = 42
 train_transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.RandomRotation(5),
-    transforms.RandomResizedCrop(224, scale=(0.85, 1.0), ratio=(0.95, 1.05)),
+    transforms.CenterCrop(224),
     transforms.ColorJitter(brightness=0.15, contrast=0.15),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
