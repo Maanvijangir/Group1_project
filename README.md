@@ -107,24 +107,26 @@ Generated reports are available in the `reports/` directory.
 
 ### Model Performance
 
-The weights currently in this repo were trained with an earlier version of `train_optimized.py`, at 150×150. Their results on the 624 test images, with threshold 0.4:
+The current model is the ResNet-18 in `pneumonia_resnet18_recall_optimized.pth`, trained by `train_optimized.py` with the 224×224 center crop. ResNet-50 weights are not in this repo, so it could not be compared.
 
-| Metric | Score |
-|---------|---------|
-| Recall | 96.9% |
-| Specificity | 43.2% |
-| Precision | 74.0% |
-| Accuracy | 76.8% |
-| F1 | 0.839 |
-| ROC-AUC | 0.913 |
+Results on the 624 test images:
 
-Confusion matrix: 378 true positives, 12 false negatives, 101 true negatives, 133 false positives.
+| Metric | Threshold 0.52 (from training) | Threshold 0.88 (chosen on validation for ≥95% recall) |
+|---------|---------|---------|
+| Recall | 99.5% | 98.5% |
+| Specificity | 69.7% | 81.2% |
+| Precision | 84.5% | 89.7% |
+| Accuracy | 88.3% | 92.0% |
+| F1 | 0.914 | 0.939 |
+| Missed pneumonia / false alarms | 2 / 71 | 6 / 44 |
+
+ROC-AUC is 0.975 for both, since it does not depend on the threshold.
 
 ### Key Findings
 
-- The model finds **96.9% of pneumonia cases**, but it also flags **133 of 234 normal X-rays** as pneumonia, so these results are not ready for deployment.
-- The earlier **100% validation recall** came from the original validation folder, which holds only 8 pneumonia images, so it is not a reliable estimate.
-- The model prioritizes high recall, which is critical in medical diagnosis tasks where missing pneumonia cases can have serious consequences.
+- The model finds **99.5% of pneumonia cases**, but at the training threshold it still flags **71 of 234 normal X-rays** as pneumonia.
+- Raising the threshold to 0.88 cuts false alarms to 44 while recall stays at 98.5%. The team still needs to choose the threshold.
+- The previous ResNet-18 (150×150, `pos_weight=3`) missed 12 cases and flagged 133 normal X-rays.
 
 ---
 
@@ -133,12 +135,15 @@ Confusion matrix: 378 true positives, 12 false negatives, 101 true negatives, 13
 `evaluate.py` reports accuracy, recall, specificity, precision, F1, ROC-AUC and the confusion matrix on the validation and test splits, and saves them to `reports/evaluation_<arch>.csv` with a confusion matrix and ROC curve in `reports/figures/evaluation/`.
 
 ```bash
-python evaluate.py --image-size 150               # ResNet-18 weights in this repo (trained at 150x150), threshold 0.4
+python evaluate.py                                # ResNet-18, threshold from performance_logs_optimization.csv
+python evaluate.py --min-recall 0.95              # pick the threshold on validation, apply it to test
 python evaluate.py --arch resnet50                # ResNet-50 from models/baseline_resnet50.pth
 python evaluate.py --arch resnet50 --min-recall 0.95   # pick the threshold on validation, apply it to test
 ```
 
-Always quote **test** results. Validation scores can be optimistic: the ResNet-18 in this repo scores 92.6% specificity on validation but 43.2% on test, because its validation images were part of its training data.
+Always quote **test** results. Validation scores are optimistic: the ResNet-18 scores 99.0% specificity on validation but 69.7% on test. Most pneumonia validation images share a patient with a training image.
+
+Without `--threshold`, the ResNet-18 uses the threshold `train_optimized.py` chose for its best epoch, read from `performance_logs_optimization.csv`.
 
 ---
 
@@ -152,8 +157,8 @@ High recall does not show *why* the model predicts pneumonia. Chest X-ray models
 Run from the repo root once the dataset is in `data/interim/chest_xray`:
 
 ```bash
-python explain.py --image-size 150                         # ResNet-18 weights in this repo, whole test split
-python explain.py --image-size 150 --image path/to/xray.jpeg   # the same model, a single X-ray
+python explain.py                                          # ResNet-18, whole test split
+python explain.py --image path/to/xray.jpeg                # ResNet-18, a single X-ray
 python explain.py --arch resnet50                          # ResNet-50 from models/baseline_resnet50.pth
 ```
 
@@ -165,33 +170,32 @@ Outputs:
 | `reports/figures/explainability/<run>/occlusion_<outcome>.png` | Grad-CAM next to occlusion for the same images |
 | `reports/explainability_summary_<run>.csv` | Per-image probability, prediction, outcome and `cam_border_fraction` |
 
-`<run>` is the model name plus any `--image-size`, for example `resnet18_150`, so one model's report does not overwrite another's. The saved report for the weights in this repo is in `reports/explainability_summary.csv` and `reports/figures/explainability/`.
+`<run>` is the model name plus any `--image-size`, for example `resnet18`, so one model's report does not overwrite another's. The saved report for the current ResNet-18 is in `reports/explainability_summary.csv` and `reports/figures/explainability/`.
 
 `cam_border_fraction` is the share of the heatmap in the outer 15% of the image. A flat heatmap scores about 0.51; values well above that point to border artefacts rather than the lungs. `explainability.ipynb` walks through the figures and records the findings.
 
-Use `--image-size` when a model was trained at a different size from `src/dataset.py`. The ResNet-18 in this repo was trained at 150×150, and running it at 224×224 changes its results (183 false positives instead of 133).
+Use `--image-size` only for older weights trained at another size without the center crop, such as the previous 150×150 ResNet-18.
 
-### Explainability Findings (weights in this repo, test set, threshold 0.4)
+### Explainability Findings (current ResNet-18, test set, threshold 0.52)
 
-| Outcome | Count | Mean border attention |
-|---------|-------|-----------------------|
-| True positive | 378 | 0.49 |
-| True negative | 101 | 0.30 |
-| False positive | 133 | 0.59 |
-| False negative | 12 | 0.32 |
+| Outcome | Count | Mean border attention | Previous model |
+|---------|-------|-----------------------|----------------|
+| True positive | 388 | 0.43 | 378, 0.49 |
+| True negative | 163 | 0.42 | 101, 0.30 |
+| False positive | 71 | 0.47 | 133, 0.59 |
+| False negative | 2 | 0.43 | 12, 0.32 |
 
-- Recall is 96.9%, but **specificity is only 43.2%**: 133 of 234 normal X-rays are flagged as pneumonia, most with high confidence.
-- Grad-CAM heatmaps for pneumonia predictions are **diffuse** rather than focused on lung opacities.
-- **False positives look outside the lungs** (image edges, background, below the diaphragm), with the highest border attention of any group.
-- Normal predictions, including the 12 missed pneumonia cases, all focus on the upper-central chest and ignore the lower lung zones.
-- `train_optimized.py` has since changed to address this. These findings still need to be checked on newly trained weights.
+- The model now **looks mostly at the lungs**: only 12.3% of heatmaps have more border attention than a flat heatmap, down from 40.9%.
+- **False alarms remain the weakness.** In the occlusion examples, image edges and the area below the diaphragm push healthy X-rays towards pneumonia.
+- Both missed cases focus on the trachea and upper mediastinum, the same pattern as the previous model's 12 misses.
+- Details and figures are in `explainability.ipynb`.
 
 ---
 
 ## Notes
 
 - Datasets are **not pushed to GitHub**; only the folder structure is included.
-- Run `setup.ipynb` to download the dataset, then the scripts above to train and evaluate. Trained weights for the newer ResNet-18 and the ResNet-50 are not in this repo yet.
+- Run `setup.ipynb` to download the dataset, then the scripts above to train and evaluate. ResNet-50 weights are not in this repo.
 - Users must download the dataset locally and place it in the appropriate `data/` directories.
 - Generated reports can be found in the `reports/` folder.
 

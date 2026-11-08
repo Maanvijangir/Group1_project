@@ -11,7 +11,7 @@ Saves:
   - reports/figures/evaluation/<arch>_roc.png
 
 Usage (from the repo root):
-  python evaluate.py                              # ResNet-18, threshold 0.4
+  python evaluate.py                              # ResNet-18, threshold from its training log
   python evaluate.py --arch resnet50              # ResNet-50, threshold 0.5
   python evaluate.py --arch resnet50 --min-recall 0.95
 """
@@ -27,11 +27,11 @@ import torch
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, roc_auc_score, roc_curve
 
 from src.dataset import get_dataloaders, get_test_transform
-from src.explainability.gradcam import CLASS_NAMES, LOADERS, pneumonia_probability
+from src.explainability.gradcam import CLASS_NAMES, LOADERS, pneumonia_probability, saved_resnet18_threshold
 
 # Default weights and decision threshold for each architecture
 ARCH_DEFAULTS = {
-    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # the threshold the weights in the repo were reported at
+    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", None),  # threshold read from performance_logs_optimization.csv
     "resnet50": (os.path.join("models", "baseline_resnet50.pth"), 0.5),  # argmax in src/modeling/train.py
 }
 
@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--arch", default="resnet18", choices=list(LOADERS))
     parser.add_argument("--weights", help="default: the usual weights file for --arch")
     parser.add_argument("--threshold", type=float,
-                        help="fixed P(pneumonia) threshold (default: 0.4 for resnet18, 0.5 for resnet50)")
+                        help="fixed P(pneumonia) threshold (default: from the training log for resnet18, 0.5 for resnet50)")
     parser.add_argument("--min-recall", type=float,
                         help="instead of --threshold, pick the threshold on validation that keeps this recall")
     parser.add_argument("--image-size", type=int,
@@ -96,6 +96,8 @@ def main():
     args = parser.parse_args()
 
     default_weights, default_threshold = ARCH_DEFAULTS[args.arch]
+    if default_threshold is None:
+        default_threshold = saved_resnet18_threshold()
     weights = args.weights or default_weights
     device = get_device()
     model = LOADERS[args.arch](weights, device)
