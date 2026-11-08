@@ -1,3 +1,6 @@
+import csv
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,6 +28,21 @@ def load_resnet50(weights_path, device):
 
 
 LOADERS = {"resnet18": load_resnet18, "resnet50": load_resnet50}
+
+
+def saved_resnet18_threshold(log_path="performance_logs_optimization.csv", default=0.5):
+    """The threshold train_optimized.py chose for the weights it saved.
+
+    It keeps the epoch with the highest sqrt(val recall * val specificity) (the first
+    one on ties) and logs that epoch's threshold, so the same rule finds it here.
+    """
+    try:
+        with open(log_path, newline="") as f:
+            rows = list(csv.DictReader(f))
+        best = max(rows, key=lambda r: math.sqrt(float(r["val_recall"]) * float(r["val_specificity"])))
+        return float(best["optimal_threshold"])
+    except (OSError, KeyError, ValueError):
+        return default
 
 
 def pneumonia_probability(logits):

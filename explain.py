@@ -28,11 +28,11 @@ from torchvision import datasets
 
 from src.dataset import DATA_DIR, get_test_transform
 from src.explainability.gradcam import (CLASS_NAMES, LOADERS, GradCAM, border_fraction, denormalize,
-                                        occlusion_sensitivity)
+                                        occlusion_sensitivity, saved_resnet18_threshold)
 
 # Default weights and decision threshold for each architecture
 ARCH_DEFAULTS = {
-    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", 0.4),  # the threshold the weights in the repo were reported at
+    "resnet18": ("pneumonia_resnet18_recall_optimized.pth", None),  # threshold read from performance_logs_optimization.csv
     "resnet50": (os.path.join("models", "baseline_resnet50.pth"), 0.5),  # argmax in src/modeling/train.py
 }
 
@@ -200,7 +200,7 @@ def main():
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--image", help="explain a single X-ray instead of a whole split")
     parser.add_argument("--threshold", type=float,
-                        help="P(pneumonia) decision threshold (default: 0.4 for resnet18, 0.5 for resnet50)")
+                        help="P(pneumonia) decision threshold (default: from the training log for resnet18, 0.5 for resnet50)")
     parser.add_argument("--image-size", type=int,
                         help="input size the model was trained at (default: src/dataset.py test_transform; "
                              "the ResNet-18 weights were trained at 150)")
@@ -216,6 +216,8 @@ def main():
 
     device = get_device()
     default_weights, default_threshold = ARCH_DEFAULTS[args.arch]
+    if default_threshold is None:
+        default_threshold = saved_resnet18_threshold()
     args.weights = args.weights or default_weights
     args.threshold = default_threshold if args.threshold is None else args.threshold
     model = LOADERS[args.arch](args.weights, device)
