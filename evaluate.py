@@ -71,7 +71,6 @@ def compute_metrics(labels, probs, threshold):
         "tp": int(tp), "fn": int(fn), "tn": int(tn), "fp": int(fp),
     }
 
-
 def pick_threshold(labels, probs, min_recall):
     """Highest threshold whose recall is still at least min_recall."""
     candidates = np.unique(probs)[::-1]
