@@ -55,8 +55,11 @@ pip install -r requirements.txt
 ├── evaluate.py       # Accuracy, recall, specificity, precision, F1, ROC-AUC, confusion matrix
 ├── explain.py        # Explainability script (Grad-CAM + occlusion)
 ├── explainability.ipynb # Explainability walkthrough and findings
-├── requirements.txt
+├── app.py  # GUI representation of the model.
+├── performance_logs_optimization.csv
+├── pneumonia_resent-18_recall_optimized.pth 
 └── README.md
+
 ```
 
 ---
@@ -98,8 +101,6 @@ Generated reports are available in the `reports/` directory.
 - Chooses the threshold on the validation set each epoch and keeps the best epoch
 - Prints the final test-set results
 - Saves the weights to `pneumonia_resnet18_recall_optimized.pth` and the log to `performance_logs_optimization.csv`
-
-`src/modeling/train.py` trains the ResNet-50 baseline and saves it to `models/baseline_resnet50.pth`, which is not stored in this repo.
 
 ---
 
