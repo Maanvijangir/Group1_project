@@ -1,0 +1,7 @@
+[theme]
+base = "light"
+primaryColor = "#d11909"
+backgroundColor = "#FFFFFF" 
+secondaryBackgroundColor = "#F8FAFC"   # This turns all inputs, dropdowns & uploader boxes pure white!
+textColor = "#0F172A"
+font = "sans serif"
