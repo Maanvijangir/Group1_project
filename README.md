@@ -192,6 +192,13 @@ Use `--image-size` only for older weights trained at another size without the ce
 - Details and figures are in `explainability.ipynb`.
 
 ---
+## GUI 
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/d7e1a053-bdcc-4728-9fec-e4c71de8c163" />
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/2be4ce59-99fa-46fe-8584-37e2e7afdeed" />
+<img width="500" height="500" alt="image" src="https://github.com/user-attachments/assets/f827ac45-aee5-4ae8-a2ae-e5cb9d7b02fc" />
+
+
+
 
 ## Notes
 
